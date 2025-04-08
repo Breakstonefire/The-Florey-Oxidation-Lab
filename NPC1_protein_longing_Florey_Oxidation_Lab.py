@@ -1037,7 +1037,7 @@ elif METHOD_GENERATE_PARAMETERS_GRID_SEARCH == "Powers_in_a_given_list":
 
 # Ploting the curves
 print("# Ploting the curves")
-plt.figure(figsize = (DefaultFigureWidth , DefaultFigureHeight) , dpi = DefaultDPIResolution , facecolor = DefaultFaceColor , edgecolor = DefaultEdgeColor , layout = DefaultLayout)
+fig_EXPERIMENTAL_DATA = plt.figure(figsize = (DefaultFigureWidth , DefaultFigureHeight) , dpi = DefaultDPIResolution , facecolor = DefaultFaceColor , edgecolor = DefaultEdgeColor , layout = DefaultLayout)
 plt.subplot(2 , 2 , (1,2))
 plt.title("Protein concentration vs time (varying mRNA dosage)")
 for num_curve in range(Nb_curves_to_fit):
@@ -1089,6 +1089,16 @@ for num_curve in range(Nb_curves_to_fit):
 plt.grid(visible = DefaultGridValue , which = 'both' , alpha = DefaultGridOpacity , color = DefaultGridColor , linestyle = DefaultGridLineStyle , linewidth = DefaultGridLineWidth)
 plt.legend()
 plt.show()
+
+# Filename prefix
+fig_filename_prefix = "EXPERIMENTAL Protein concentration vs time (varying mRNA dosage)"
+
+# Saving the figure containing the training and validation losses curves
+save_plot_with_timestamp(directory          = os.path.join(path_to_all_files , 'SAVED_FIGURES_CURVE_FITTING'),
+                         figure_name        = fig_EXPERIMENTAL_DATA,
+                         filename_prefix    = fig_filename_prefix,
+                         timestamp          = DATE_AND_TIME, # Format Year_Month_Day_Hour_Minute_Second
+                         Print_message      = True)
 
 # Initializing the lists containing the further optimized parameters
 List_of_alpha_protein_optimized = np.zeros(Nb_curves_to_fit)
@@ -1392,7 +1402,6 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
         plt.ylabel('Parameters')
         plt.legend(fontsize = DefaultFontSize , loc = 'upper right')
         plt.grid(visible = DefaultGridValue , which = 'both' , alpha = DefaultGridOpacity , color = DefaultGridColor , linestyle = DefaultGridLineStyle , linewidth = DefaultGridLineWidth)
-        
         plt.show()
         
         # Automatically including the hyperparameters in the filename
