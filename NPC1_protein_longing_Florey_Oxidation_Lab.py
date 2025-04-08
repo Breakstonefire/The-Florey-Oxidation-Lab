@@ -533,8 +533,6 @@ def calculate_theoretical_maximum_concentration(alpha_protein, beta_protein, alp
 
 def find_tau_half_life_from_optimal_parameters(alpha_protein_OPTI, beta_protein_OPTI, t_injection, alpha_mRNA_OPTI, beta_mRNA_OPTI, mRNA_t_injection, Number_of_iterations_MAX, MAXIMUM_TIMEPOINT, precision_required_as_decimal_value):
     
-    print("\n 0")
-    
     # Compute key concentrations
     P_at_t_equilibrium = alpha_protein_OPTI * alpha_mRNA_OPTI / (beta_protein_OPTI * beta_mRNA_OPTI)
     t_inflexion        = calculate_theoretical_inflexion_timepoint(t_injection, beta_protein_OPTI, beta_mRNA_OPTI)
@@ -555,7 +553,6 @@ def find_tau_half_life_from_optimal_parameters(alpha_protein_OPTI, beta_protein_
             t_middle = (time_lower_bound + time_upper_bound) / 2
             protein_at_t_middle = Generate_protein_t_AFTER_INJECTION(alpha_protein_OPTI, beta_protein_OPTI, t_middle, t_injection, alpha_mRNA_OPTI, beta_mRNA_OPTI , mRNA_t_injection)
             if abs(protein_at_t_middle - P_at_Tau_half_life) <= tolerance:
-                print(f"{t_inflexion}, {P_at_t_inflexion}, {round(t_middle, precision_required_as_decimal_value)}, {P_at_Tau_half_life}")
                 return t_inflexion, P_at_t_inflexion, round(t_middle, precision_required_as_decimal_value), P_at_Tau_half_life
             if protein_at_t_middle                           > P_at_Tau_half_life:  time_lower_bound = t_middle
             elif P_at_Tau_half_life                          > protein_at_t_middle: time_upper_bound = t_middle
@@ -886,23 +883,24 @@ METHOD_GENERATE_PARAMETERS_GRID_SEARCH = "Power_min_to_power_max" # "Power_min_t
                                         # "Powers_in_a_given_list" means the 10th powers can be discontinuous such as 1e-9 to 1e-7 and the 1e-3 and 1e+5 etc ...
 
 # Parameters on the search grid
-Nb_points_per_decade = 20 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
+Nb_points_per_decade = 21 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
+                          # If only one or two decimal integers required for the linearspace, chose the 'Nb_points_per_decade' in this [2, 3, 5, 6, 9, 11, 17, 21, 26, 33, 41, 51 ... to complete if needed ...]
 PowerStep_ALL = 1
 
 # Parameters for the grid search of every different alpha and beta
 Nb_points_per_decade_AP = Nb_points_per_decade  # SET
-MIN_Power_AP            = -10
-MAX_Power_AP            = -2
+MIN_Power_AP            = -15
+MAX_Power_AP            = -5
 PowerStep_AP            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_BP = Nb_points_per_decade  # SET
-MIN_Power_BP            = -10
+MIN_Power_BP            = -11
 MAX_Power_BP            = 0                     # SET
 PowerStep_BP            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_Am = Nb_points_per_decade  # SET
-MIN_Power_Am            = -10
-MAX_Power_Am            = +10
+MIN_Power_Am            = -11
+MAX_Power_Am            = +11
 PowerStep_Am            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_Bm = Nb_points_per_decade  # SET
@@ -1098,6 +1096,10 @@ List_of_beta_protein_optimized  = np.zeros(Nb_curves_to_fit)
 List_of_alpha_mRNA_optimized    = np.zeros(Nb_curves_to_fit)
 List_of_beta_mRNA_optimized     = np.zeros(Nb_curves_to_fit)
 List_of_MSE_all_curves          = []
+List_of_Tau_half_life           = np.zeros(Nb_curves_to_fit)
+List_of_mRNA_masses             = np.zeros(Nb_curves_to_fit)
+List_of_mRNA_mass_units         = np.zeros(Nb_curves_to_fit)
+List_of_mRNA_mass_units_str     = []
 
 ######################################################################################################################################################################
 ## NESTED SEARCHING LOOPS TO DETERMINE THE NUMBER OF MSEs TO BE LATER COMPUTED => THIS STEP IS NECESSARY TO CORRECTLY HANDLE THE MEMORY ALLOCATION FOR THE MSE list ##
@@ -1172,8 +1174,11 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
         else : raise ValueError("No interpretable unit found in the mRNA dosage => mRNA mass unit is unknown ...")
         
         # Calculating the current mRNA mass
-        mRNA_mass_in_kg = mRNA_mass * mRNA_mass_unit
-        mRNA_mass_in_g  = mRNA_mass_in_kg * 1000
+        mRNA_mass_in_kg                    = mRNA_mass * mRNA_mass_unit
+        mRNA_mass_in_g                     = mRNA_mass_in_kg * 1000
+        List_of_mRNA_masses[num_curve]     = mRNA_mass
+        List_of_mRNA_mass_units[num_curve] = mRNA_mass_unit
+        List_of_mRNA_mass_units_str.append(mRNA_mass_unit_str)
         
         # Calculating the current number of mRNA molecules
         mRNA_t_injection = mRNA_mass_in_g * Avogadro / Molar_mass_mRNA # The number of mRNA at t = t_injection (no unit as it is a number of molecules)
@@ -1295,7 +1300,9 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
     List_of_MSE_all_curves.append(List_of_MSE)
     X_axis = np.cumsum(np.ones(Nb_of_MSEs_to_plot))
     
-    if Nb_of_MSEs_to_plot == 0: print('WARNING : 0 MSE were calculated due to 0 set of parameters satisfying the constraints / conditions ...')
+    if Nb_of_MSEs_to_plot == 0:
+        print('WARNING : 0 MSE were calculated due to 0 set of parameters satisfying the constraints / conditions ...')
+        List_of_Tau_half_life[num_curve] = -1
     else:
         
         ######################
@@ -1306,12 +1313,12 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
         beta_mRNA_OPTI     = List_of_beta_mRNA_optimized[num_curve]
         
         # Calculate the tau half-life
-        MAXIMUM_TIMEPOINT = coef_t_limit_tau_half_life_finding * t_final
-        [t_inflexion, P_at_t_inflexion, t_injection_plus_Tau_half_life_in_SEC, P_at_Tau_half_life] \
-            = find_tau_half_life_from_optimal_parameters(alpha_protein_OPTI, beta_protein_OPTI, t_injection, alpha_mRNA_OPTI, beta_mRNA_OPTI, mRNA_t_injection, Number_of_iterations_MAX, MAXIMUM_TIMEPOINT, precision_required_as_decimal_value)
+        MAXIMUM_TIMEPOINT                      = coef_t_limit_tau_half_life_finding * t_final
+        [t_inflexion, P_at_t_inflexion, t_injection_plus_Tau_half_life_in_SEC, P_at_Tau_half_life] = find_tau_half_life_from_optimal_parameters(alpha_protein_OPTI, beta_protein_OPTI, t_injection, alpha_mRNA_OPTI, beta_mRNA_OPTI, mRNA_t_injection, Number_of_iterations_MAX, MAXIMUM_TIMEPOINT, precision_required_as_decimal_value)
         t_injection_plus_Tau_half_life_in_HOUR = t_injection_plus_Tau_half_life_in_SEC / 3600
         Tau_half_life_in_SEC                   = t_injection_plus_Tau_half_life_in_SEC - t_injection
         Tau_half_life_in_HOUR                  = round(Tau_half_life_in_SEC / 3600 , 2)
+        List_of_Tau_half_life[num_curve]       = Tau_half_life_in_HOUR
         
         alpha_protein_OPTI_int , alpha_protein_OPTI_exp = extract_value_and_exponent(alpha_protein_OPTI)
         beta_protein_OPTI_int , beta_protein_OPTI_exp = extract_value_and_exponent(beta_protein_OPTI)
@@ -1400,6 +1407,36 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
     
     List_of_adjusted_Nb_of_MSEs_to_compute[num_curve] = count
     print(f"Curve fitting {num_curve+1}/{Nb_curves_to_fit}: Number of MSE to compute = {count}")
+
+########################################################################
+## Plotting the evolution of Tau half-life versus the mRNA injected mass
+min_mRNA_mass_unit_in_g = min(List_of_mRNA_mass_units)
+List_of_mRNA_masses_scaled_on_lowest_unit = List_of_mRNA_masses * List_of_mRNA_mass_units / min_mRNA_mass_unit_in_g
+
+customized_label = 'Tau_1/2([mRNA])'
+for i , tau in enumerate(List_of_Tau_half_life):
+    mRNA_mass_units_str_tmp = List_of_mRNA_mass_units_str[i]
+    customized_label = customized_label + f'\n - Tau({i}) = {List_of_mRNA_masses[i]} {mRNA_mass_units_str_tmp}'
+
+fig_Tau_Half_life_over_mRNA_mass_injected = plt.figure(figsize = (DefaultFigureWidth , DefaultFigureHeight) , dpi = DefaultDPIResolution , facecolor = DefaultFaceColor , edgecolor = DefaultEdgeColor , layout = DefaultLayout)
+plt.title("Tau Half-Life over mRNA mass injected (per cell)")
+plt.plot(List_of_mRNA_masses_scaled_on_lowest_unit, List_of_Tau_half_life, color = ReturnRGBColorCode('blue'), label = customized_label)
+# plt.xlim([min(List_of_mRNA_masses_scaled_on_lowest_unit), max(List_of_mRNA_masses_scaled_on_lowest_unit)])
+plt.xlabel(f'mRNA mass injected [{min_mRNA_mass_unit_in_g}g]')
+plt.ylabel('Tau half-life')
+plt.legend(fontsize = DefaultFontSize , loc = 'upper right')
+plt.grid(visible = DefaultGridValue , which = 'both' , alpha = DefaultGridOpacity , color = DefaultGridColor , linestyle = DefaultGridLineStyle , linewidth = DefaultGridLineWidth)
+plt.show()
+
+# Filename prefix
+fig_filename_prefix = "Tau_Half_life_over_mRNA_mass_injected"
+
+# Saving the figure containing the training and validation losses curves
+save_plot_with_timestamp(directory          = os.path.join(path_to_all_files , 'SAVED_FIGURES_CURVE_FITTING'),
+                         figure_name        = fig_Tau_Half_life_over_mRNA_mass_injected,
+                         filename_prefix    = fig_filename_prefix,
+                         timestamp          = DATE_AND_TIME, # Format Year_Month_Day_Hour_Minute_Second
+                         Print_message      = True)
 
 #################
 ## END OF PROGRAM
