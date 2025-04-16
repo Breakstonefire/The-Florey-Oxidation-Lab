@@ -74,7 +74,7 @@ coef_t_limit_Tau_half_life_protein_finding = 3 # This is the multiplicative coef
 precision_required_as_decimal_value        = 2 # precision for tau half-life in seconds (preicsion is in terms of seconds not in terms of hours)
 
 # Parameters on the expected structure of the CSV file
-Nb_Data_Per_Sheet               = 1
+Nb_Data_Per_Sheet               = 3
 Data_Labels_Row                 = 0
 Time_Labels_Row                 = 1
 mRNA_Dosages_Row                = 1
@@ -94,7 +94,11 @@ Number_of_NPC1_proteins_before_injection_at_equilibrium_____ESTIMATED = 1000 # M
 Number_of_NPC1_proteins_before_injection_at_equilibrium_MAX_ESTIMATED = 1800 # HIGHEST POSSIBLE PROTEIN CONCENTRATION AT t = t_injection used as the MAX of MAX values to search the real maximum protein concentration
 Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED         = 20000 # Estimated maximum value reached at the peak (AFTER THE mRNA INJECTION HAS BEEN DONE)
 
-coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK = 2 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
+# Number of timepoints that are respecitvely taken before and after the EXPERIMENTAL PEAK to search the PREDICTED PEAK from the FIT CURVE in this area / range arounf the EXP MAX protein concentration timepoint
+Nb_of_timepoints_BEFORE_EXPERIMENTAL_MAX_for_FIT_MAX_searching = 1
+Nb_of_timepoints_AFTER_EXPERIMENTAL_MAX_for_FIT_MAX_searching  = 3
+
+coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK = 1.5 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
 
 # # # # # # # # # # # # # # # # # # # # #
 ## Parameters on the normalization step
@@ -116,7 +120,7 @@ METHOD_GENERATE_PARAMETERS_GRID_SEARCH = "Power_min_to_power_max" # "Power_min_t
                                         # "Powers_in_a_given_list" means the 10th powers can be discontinuous such as 1e-9 to 1e-7 and the 1e-3 and 1e+5 etc ...
 
 # Parameters on the search grid
-Nb_points_per_decade = 10 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
+Nb_points_per_decade = 5 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
                           # If only one or two decimal integers required for the linearspace, chose the 'Nb_points_per_decade' in this [2, 3, 5, 6, 9, 11, 17, 21, 26, 33, 41, 51 ... to complete if needed ...]
 PowerStep_ALL = 1
 
@@ -127,44 +131,19 @@ MAX_Power_AP            = -1
 PowerStep_AP            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_BP = Nb_points_per_decade  # SET
-MIN_Power_BP            = -13
+MIN_Power_BP            = -15
 MAX_Power_BP            = 0                     # SET
 PowerStep_BP            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_Am = Nb_points_per_decade  # SET
-MIN_Power_Am            = -7
-MAX_Power_Am            = +6
+MIN_Power_Am            = -10
+MAX_Power_Am            = +3
 PowerStep_Am            = PowerStep_ALL         # SET
 
 Nb_points_per_decade_Bm = Nb_points_per_decade  # SET
 MIN_Power_Bm            = MIN_Power_BP          # SET
 MAX_Power_Bm            = abs(MIN_Power_BP)     # SET
 PowerStep_Bm            = PowerStep_ALL         # SET
-
-# ###############################################################################
-# ###############################################################################
-# ## THIS BLOCK CAN BE USED TO TUNE THE PARAMETERS RANGES WHEN ROUGHLY IDENTIFIED
-# # Parameters for the grid search of every different alpha and beta
-# Nb_points_per_decade    = 50
-# Nb_points_per_decade_AP = Nb_points_per_decade  # SET
-# MIN_Power_AP            = -10
-# MAX_Power_AP            = -8
-# PowerStep_AP            = PowerStep_ALL         # SET
-# Nb_points_per_decade_BP = Nb_points_per_decade  # SET
-# MIN_Power_BP            = -6
-# MAX_Power_BP            = -4 # 0                     # SET
-# PowerStep_BP            = PowerStep_ALL         # SET
-# Nb_points_per_decade_Am = Nb_points_per_decade  # SET
-# MIN_Power_Am            = +0
-# MAX_Power_Am            = +3
-# PowerStep_Am            = PowerStep_ALL         # SET
-# Nb_points_per_decade_Bm = Nb_points_per_decade  # SET
-# MIN_Power_Bm            = MIN_Power_BP          # SET
-# MAX_Power_Bm            = abs(MIN_Power_BP)     # SET
-# PowerStep_Bm            = PowerStep_ALL         # SET
-# ## THIS BLOCK CAN BE USED TO TUNE THE PARAMETERS RANGES WHEN ROUGHLY IDENTIFIED
-# ###############################################################################
-# ###############################################################################
 
 # - Function taking a mRNA sequence in argument and giving the number of synonymous mRNA sequences + the protein sequence expected after translation process
 def CountSynonymousmRNASequences_from_mRNA(mRNA_sequence , FORMAT = 'TEXT' , mRNASeq_StartingWord = '' , PrintMessage = False , ShowCombinationEvolutionPlot = False , ORDER_TYPE = 'SORT_by_%'):
@@ -1179,8 +1158,12 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
         
         # Storing the index of the value right before and right after the EXPERIMENTAL MAXIMUM VALUE
         index_of_EXPERIMENTAL_MAXIMUM_VALUE = np.argmax(EXPERIMENTAL_protein_concentration)
-        index_BEFORE_MAX = index_of_EXPERIMENTAL_MAXIMUM_VALUE - 1 if index_of_EXPERIMENTAL_MAXIMUM_VALUE > 0 else 0
-        index_AFTER_MAX  = index_of_EXPERIMENTAL_MAXIMUM_VALUE + 1 if index_of_EXPERIMENTAL_MAXIMUM_VALUE < len(EXPERIMENTAL_protein_concentration) - 1 else index_of_EXPERIMENTAL_MAXIMUM_VALUE
+        if (index_of_EXPERIMENTAL_MAXIMUM_VALUE >= 0 and index_of_EXPERIMENTAL_MAXIMUM_VALUE - Nb_of_timepoints_BEFORE_EXPERIMENTAL_MAX_for_FIT_MAX_searching >= 0):
+            index_BEFORE_MAX = index_of_EXPERIMENTAL_MAXIMUM_VALUE - Nb_of_timepoints_BEFORE_EXPERIMENTAL_MAX_for_FIT_MAX_searching 
+        else: index_BEFORE_MAX = 0
+        if (index_of_EXPERIMENTAL_MAXIMUM_VALUE < len(EXPERIMENTAL_protein_concentration) and index_of_EXPERIMENTAL_MAXIMUM_VALUE + Nb_of_timepoints_AFTER_EXPERIMENTAL_MAX_for_FIT_MAX_searching < len(EXPERIMENTAL_protein_concentration)):
+            index_AFTER_MAX = index_of_EXPERIMENTAL_MAXIMUM_VALUE + Nb_of_timepoints_AFTER_EXPERIMENTAL_MAX_for_FIT_MAX_searching
+        else: index_AFTER_MAX = index_of_EXPERIMENTAL_MAXIMUM_VALUE
         
         # Storing the times before and after the MAX
         timepoint_BEFORE_MAX_in_SECOND = List_of_time_in_SECOND[index_BEFORE_MAX]
