@@ -98,7 +98,7 @@ Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED         = 20000 # 
 Nb_of_timepoints_BEFORE_EXPERIMENTAL_MAX_for_FIT_MAX_searching = 1
 Nb_of_timepoints_AFTER_EXPERIMENTAL_MAX_for_FIT_MAX_searching  = 3
 
-coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK = 1.5 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
+coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK = 1.4 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
 
 # # # # # # # # # # # # # # # # # # # # #
 ## Parameters on the normalization step
@@ -1235,7 +1235,9 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
                                 
                                 # Calculate the maximum protein concentration predicted by the model
                                 protein_concentration_THEOR_MAX = calculate_theoretical_maximum_concentration(alpha_protein, beta_protein, alpha_mRNA, beta_mRNA, mRNA_t_injection)
-                                BOOL_maximum_protein_concentration_is_in_expected_range = (protein_eq < protein_concentration_THEOR_MAX) and (protein_concentration_THEOR_MAX <= coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK * Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED)
+                                BOOL_maximum_protein_concentration_is_in_expected_range = \
+                                    (Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED / coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK < protein_concentration_THEOR_MAX) \
+                                        and (protein_concentration_THEOR_MAX <= coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK * Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED)
                                 
                                 if not(protein_eq >= 1 and BOOL_protein_eq_predicted_is_in_the_expected_range): Nb_MSE_to_compute_IGNORED = Nb_MSE_to_compute_IGNORED + 1
                                 else:
