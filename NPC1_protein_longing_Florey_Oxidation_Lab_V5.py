@@ -27,8 +27,54 @@ except:                                                     #
     except: pass                                            #
 #############################################################
 
+import csv
+import math
+import matplotlib.pyplot as plt
+import numpy             as np
+import openpyxl
+import os
+import re
+# import sys
+import time
+
+from datetime import datetime
+from scipy.constants import Avogadro
+
+# Getting the current date and time
+DATE_AND_TIME = datetime.now().strftime("%Y_%m_%d_%H_%M_%S") # Format Year_Month_Day_Hour_Minute_Second
+
+# Getting the current directory
+CurrentDirectory = os.getcwd()
+
+# Setting the path leading to all data files
+path_to_all_files = CurrentDirectory # path_to_all_files = r'C:\Users\...\Documents' # another path whether the user changes data location or not
+
+##################
+## MAIN PARAMETERS
+## TXT reading parameters
+PrintMessage                 = True
+ShowCombinationEvolutionPlot = False
+gene_sequence_FILE_FORMAT    = 'FASTA' # 'FASTA' # 'TEXT'
+ProtSeq_StartingWord         = 'SEQUENCE=' # This string allows the function to recognize where does the protein sequence begins in case of FASTA format ... Otherwise for TEXT format it reads and considers all the string as the protein sequence by default ...
+DNA_SEQ_FILENAME_TXT         = "Homo sapiens NPC intracellular cholesterol transporter 1 (NPC1), mRNA NM_000271.5.txt"
+DNA_GENE_SEQ_StartingWord    = 'RefSeqGene on chromosome 18'
+ORDER_TYPE                   = 'SORT_by_%'  # Change to 'SORT_by_NAME' or 'SORT_by_%'
+
+## CSV reading parameters
+Name_of_CSV_File = '20250121_Data analysis_HalfLife.xlsx'
+filename         = os.path.join(path_to_all_files, Name_of_CSV_File)
+
+# ALTERNATIVELY : if the searching range is discontinuous, one can directly put the 10th powers to work with in the following list ...
+List_of_Power10_values_for_parameters = np.array([-15 , -13 , -11 , -9 , -7])
+Nb_points_per_hour_THEORETICAL_CURVE  = 500 # Number of points per hour to plot for the optimized theoretical curve found after the optimization process
+
+# Number of timepoints to generate for the tau half-life search
+Number_of_iterations_MAX                   = 100000
+coef_t_limit_Tau_half_life_protein_finding = 3 # This is the multiplicative coefficient in front of the experiment ending time point so we are sure to simulate the theoretical curve on a long-enough time duration to find Tau_half_life_protein (or Tau_p_percent more generally ...)
+precision_required_as_decimal_value        = 2 # precision for tau half-life in seconds (preicsion is in terms of seconds not in terms of hours)
+
 # Parameters on the expected structure of the CSV file
-Nb_Data_Per_Sheet               = 3
+Nb_Data_Per_Sheet               = 1
 Data_Labels_Row                 = 0
 Time_Labels_Row                 = 1
 mRNA_Dosages_Row                = 1
@@ -43,12 +89,12 @@ Nb_Columns_Per_Data             = 2
 BOOL_ReplaceNonBreakingSpace_by_space = True
 
 # Estimated number of NPC1 proteins at equilibrium (right before the mRNA injection)
-Number_of_NPC1_proteins_before_injection_at_equilibrium_MIN_ESTIMATED = 500
-Number_of_NPC1_proteins_before_injection_at_equilibrium_____ESTIMATED = 1000
-Number_of_NPC1_proteins_before_injection_at_equilibrium_MAX_ESTIMATED = 2000
-Number_of_NPC1_proteins_before_injection_at_peak_MAX_ESTIMATED        = 20000
+Number_of_NPC1_proteins_before_injection_at_equilibrium_MIN_ESTIMATED = 600 # LOWEST POSSIBLE PROTEIN CONCENTRATION AT t = t_injection  used as the MIN of MIN values to search the real minimum protein concentration
+Number_of_NPC1_proteins_before_injection_at_equilibrium_____ESTIMATED = 1000 # Minimum value estimated (so the script will search a bit lower and higher than this value to fit the curve at t = t_injection)
+Number_of_NPC1_proteins_before_injection_at_equilibrium_MAX_ESTIMATED = 1800 # HIGHEST POSSIBLE PROTEIN CONCENTRATION AT t = t_injection used as the MAX of MAX values to search the real maximum protein concentration
+Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED         = 20000 # Estimated maximum value reached at the peak (AFTER THE mRNA INJECTION HAS BEEN DONE)
 
-coef_multiplicator_between_1_and_2_for_estimated_MAX = 2 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
+coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK = 2 # coefficient multiplying the maximum value taken for the experimental data scaling so we allow the fitting curve to have a slightly higher maximum value ...
 
 # # # # # # # # # # # # # # # # # # # # #
 ## Parameters on the normalization step
@@ -70,7 +116,7 @@ METHOD_GENERATE_PARAMETERS_GRID_SEARCH = "Power_min_to_power_max" # "Power_min_t
                                         # "Powers_in_a_given_list" means the 10th powers can be discontinuous such as 1e-9 to 1e-7 and the 1e-3 and 1e+5 etc ...
 
 # Parameters on the search grid
-Nb_points_per_decade = 8 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
+Nb_points_per_decade = 10 # NEVER LOWER THAN 1 (can be higher than 9 because the points are generated via the np.linspace function)
                           # If only one or two decimal integers required for the linearspace, chose the 'Nb_points_per_decade' in this [2, 3, 5, 6, 9, 11, 17, 21, 26, 33, 41, 51 ... to complete if needed ...]
 PowerStep_ALL = 1
 
@@ -119,22 +165,6 @@ PowerStep_Bm            = PowerStep_ALL         # SET
 # ## THIS BLOCK CAN BE USED TO TUNE THE PARAMETERS RANGES WHEN ROUGHLY IDENTIFIED
 # ###############################################################################
 # ###############################################################################
-
-import csv
-import math
-import matplotlib.pyplot as plt
-import numpy             as np
-import openpyxl
-import os
-import re
-# import sys
-import time
-
-from datetime import datetime
-from scipy.constants import Avogadro
-
-# Getting the current date and time
-DATE_AND_TIME = datetime.now().strftime("%Y_%m_%d_%H_%M_%S") # Format Year_Month_Day_Hour_Minute_Second
 
 # - Function taking a mRNA sequence in argument and giving the number of synonymous mRNA sequences + the protein sequence expected after translation process
 def CountSynonymousmRNASequences_from_mRNA(mRNA_sequence , FORMAT = 'TEXT' , mRNASeq_StartingWord = '' , PrintMessage = False , ShowCombinationEvolutionPlot = False , ORDER_TYPE = 'SORT_by_%'):
@@ -918,39 +948,6 @@ plt.rc('legend' , fontsize  = SMALL_SIZE)       # legend fontsize
 plt.rc('figure' , titlesize = BIGGER_SIZE)      # fontsize of the figure title
 plt.rc('lines'  , linewidth = DefaultLineWidth)
 
-##################
-## MAIN PARAMETERS
-
-# # # # # # # # # # # # #
-## TXT reading parameters
-PrintMessage                 = True
-ShowCombinationEvolutionPlot = False
-gene_sequence_FILE_FORMAT    = 'FASTA' # 'FASTA' # 'TEXT'
-ProtSeq_StartingWord         = 'SEQUENCE=' # This string allows the function to recognize where does the protein sequence begins in case of FASTA format ... Otherwise for TEXT format it reads and considers all the string as the protein sequence by default ...
-DNA_SEQ_FILENAME_TXT         = "Homo sapiens NPC intracellular cholesterol transporter 1 (NPC1), RefSeqGene on chromosome 18.txt"
-DNA_GENE_SEQ_StartingWord    = 'RefSeqGene on chromosome 18'
-ORDER_TYPE                   = 'SORT_by_%'  # Change to 'SORT_by_NAME' or 'SORT_by_%'
-
-# # # # # # # # # # # # # #
-# Getting the current directory
-CurrentDirectory = os.getcwd()
-
-# Setting the path leading to all data files
-path_to_all_files = CurrentDirectory # path_to_all_files = r'C:\Users\...\Documents' # another path whether the user changes data location or not
-
-## CSV reading parameters
-Name_of_CSV_File = '20250121_Data analysis_HalfLife.xlsx'
-filename         = os.path.join(path_to_all_files, Name_of_CSV_File)
-
-# ALTERNATIVELY : if the searching range is discontinuous, one can directly put the 10th powers to work with in the following list ...
-List_of_Power10_values_for_parameters = np.array([-15 , -13 , -11 , -9 , -7])
-Nb_points_per_hour_THEORETICAL_CURVE  = 500 # Number of points per hour to plot for the optimized theoretical curve found after the optimization process
-
-# Number of timepoints to generate for the tau half-life search
-Number_of_iterations_MAX            = 100000
-coef_t_limit_Tau_half_life_protein_finding  = 3 # This is the multiplicative coefficient in front of the experiment ending time point so we are sure to simulate the theoretical curve on a long-enough time duration to find Tau_half_life_protein (or Tau_p_percent more generally ...)
-precision_required_as_decimal_value = 2 # precision for tau half-life in seconds (preicsion is in terms of seconds not in terms of hours)
-
 #############################
 ## STARTING MAIN COMPUTATIONS
 print("\n## STARTING MAIN COMPUTATIONS")
@@ -1172,7 +1169,7 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
         # Normalizing the experimental curve between some estimated values in terms of (either) concentration (or) number of protein molecules
         EXPERIMENTAL_protein_concentration_NORMALIZED = normalize_array(EXPERIMENTAL_protein_concentration,
                                                                         DEF_MIN = Number_of_NPC1_proteins_before_injection_at_equilibrium_____ESTIMATED,
-                                                                        DEF_MAX = Number_of_NPC1_proteins_before_injection_at_peak_MAX_ESTIMATED)
+                                                                        DEF_MAX = Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED)
         
         # Extracting the starting and ending time variables
         List_of_time_in_HOUR   = List_of_all_time[num_curve]
@@ -1255,7 +1252,7 @@ for num_curve , EXPERIMENTAL_protein_concentration in enumerate(List_of_all_prot
                                 
                                 # Calculate the maximum protein concentration predicted by the model
                                 protein_concentration_THEOR_MAX = calculate_theoretical_maximum_concentration(alpha_protein, beta_protein, alpha_mRNA, beta_mRNA, mRNA_t_injection)
-                                BOOL_maximum_protein_concentration_is_in_expected_range = (protein_eq < protein_concentration_THEOR_MAX) and (protein_concentration_THEOR_MAX <= coef_multiplicator_between_1_and_2_for_estimated_MAX * Number_of_NPC1_proteins_before_injection_at_peak_MAX_ESTIMATED)
+                                BOOL_maximum_protein_concentration_is_in_expected_range = (protein_eq < protein_concentration_THEOR_MAX) and (protein_concentration_THEOR_MAX <= coef_multiplicator_between_1_and_2_for_estimated_MAX_protein_value_AT_PEAK * Number_of_NPC1_proteins_after_injection_at_peak_MAX_ESTIMATED)
                                 
                                 if not(protein_eq >= 1 and BOOL_protein_eq_predicted_is_in_the_expected_range): Nb_MSE_to_compute_IGNORED = Nb_MSE_to_compute_IGNORED + 1
                                 else:
